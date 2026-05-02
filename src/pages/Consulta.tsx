@@ -154,9 +154,13 @@ export default function Consulta() {
       }
       const { data, error } = await supabase.functions.invoke("consulta-cpf", { body: payload });
       if (error) throw error;
-      const resp = data as { error?: string; notFound?: boolean } & ConsultaResult;
+      const resp = data as { error?: string; notFound?: boolean; serasaUnauthorized?: boolean } & ConsultaResult;
       if (resp?.notFound) {
         toast.warning("CPF não encontrado", { description: resp.error ?? "Documento não localizado na base da Serasa." });
+        return;
+      }
+      if (resp?.serasaUnauthorized) {
+        toast.error("Serasa sem liberação", { description: resp.error ?? "Credenciais sem permissão para este relatório." });
         return;
       }
       if (resp?.error) throw new Error(resp.error);
@@ -206,21 +210,22 @@ export default function Consulta() {
           const resp = data as {
             error?: string;
             notFound?: boolean;
+            serasaUnauthorized?: boolean;
             nome?: string;
             score?: number;
             totalPendencias?: number;
             somaPendencias?: number;
           };
-          if (resp?.error && !resp?.notFound) throw new Error(resp.error);
+          if (resp?.error && !resp?.notFound && !resp?.serasaUnauthorized) throw new Error(resp.error);
           acumulado.push({
             cpf: caso.cpf,
             cenario: caso.cenario,
-            ok: !resp?.notFound,
+            ok: !resp?.notFound && !resp?.serasaUnauthorized,
             nome: resp?.nome,
             score: resp?.score,
             totalPendencias: resp?.totalPendencias,
             somaPendencias: resp?.somaPendencias,
-            error: resp?.notFound ? "CPF não encontrado na base" : undefined,
+            error: resp?.notFound ? "CPF não encontrado na base" : resp?.serasaUnauthorized ? resp.error : undefined,
           });
         } catch (e) {
           acumulado.push({
