@@ -123,6 +123,16 @@ interface SerasaResult {
   dataNascimento: string | null;
 }
 
+class SerasaBusinessError extends Error {
+  code: string;
+
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = "SerasaBusinessError";
+    this.code = code;
+  }
+}
+
 // ===== Chamada ao Relatório Básico PF =====
 async function consultarSerasa(cpf: string, federalUnit = "SP"): Promise<SerasaResult> {
   const token = await getSerasaToken();
@@ -162,10 +172,12 @@ async function consultarSerasa(cpf: string, federalUnit = "SP"): Promise<SerasaR
       retailerCnpjSuffix: retailerCnpj.slice(-4),
       body: text.substring(0, 500),
     });
-    if (resp.status === 404) {
-      const err = new Error("CPF não encontrado na base da Serasa");
-      (err as Error & { code?: string }).code = "DOCUMENT_NOT_FOUND";
-      throw err;
+    if (resp.status === 404) throw new SerasaBusinessError("CPF não encontrado na base da Serasa", "DOCUMENT_NOT_FOUND");
+    if (resp.status === 412 && /USER-NOT-AUTHORIZED|Transações negadas/i.test(text)) {
+      throw new SerasaBusinessError(
+        "A credencial Serasa de produção autenticou, mas não está autorizada para o relatório solicitado. Peça à Serasa a liberação das transações REHP e X2PF para este client_id/CNPJ, ou use credenciais de homologação com SERASA_ENV=uat.",
+        "SERASA_USER_NOT_AUTHORIZED",
+      );
     }
     throw new Error(`Serasa [${resp.status}]: ${text}`);
   }
