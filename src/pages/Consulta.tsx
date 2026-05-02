@@ -154,9 +154,13 @@ export default function Consulta() {
       }
       const { data, error } = await supabase.functions.invoke("consulta-cpf", { body: payload });
       if (error) throw error;
-      const resp = data as { error?: string; notFound?: boolean } & ConsultaResult;
+      const resp = data as { error?: string; notFound?: boolean; serasaUnauthorized?: boolean } & ConsultaResult;
       if (resp?.notFound) {
         toast.warning("CPF não encontrado", { description: resp.error ?? "Documento não localizado na base da Serasa." });
+        return;
+      }
+      if (resp?.serasaUnauthorized) {
+        toast.error("Serasa sem liberação", { description: resp.error ?? "Credenciais sem permissão para este relatório." });
         return;
       }
       if (resp?.error) throw new Error(resp.error);
