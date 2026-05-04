@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, CheckCircle2, Loader2, Smartphone, ExternalLink, MessageCircle } from "lucide-react";
+import { Copy, CheckCircle2, Loader2, Smartphone, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
