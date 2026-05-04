@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -67,6 +68,7 @@ export default function Contrato() {
   const [downloadingSigned, setDownloadingSigned] = useState(false);
   const [phoneChoiceOpen, setPhoneChoiceOpen] = useState(false);
   const [phoneChoice, setPhoneChoice] = useState<"cliente" | "empresa">("cliente");
+  const [enviarWhatsapp, setEnviarWhatsapp] = useState(false);
   const [empresaTelefone, setEmpresaTelefone] = useState<string | null>(null);
 
   const handleDownloadSigned = async () => {
@@ -235,7 +237,7 @@ export default function Contrato() {
     setSigning(true);
 
     const { data, error } = await supabase.functions.invoke("zapsign-criar-documento", {
-      body: { contrato_id: c.id, telefone_envio: telefoneEnvio },
+      body: { contrato_id: c.id, telefone_envio: telefoneEnvio, enviar_whatsapp: enviarWhatsapp },
     });
 
     setSigning(false);
@@ -254,9 +256,9 @@ export default function Contrato() {
       signature_provider: "zapsign",
     });
     toast.success("Documento criado na ZapSign", {
-      description: phoneChoice === "empresa"
-        ? "O link foi enviado para o WhatsApp da loja."
-        : "O cliente receberá o link via WhatsApp. Você também pode mostrar o QR Code abaixo.",
+      description: enviarWhatsapp
+        ? `Link enviado por WhatsApp para ${telefoneEnvio}. Você também pode mostrar o QR Code abaixo.`
+        : "Use o link / QR Code abaixo para o cliente assinar.",
     });
     setSignDialog(true);
   };
