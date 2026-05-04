@@ -229,6 +229,7 @@ Deno.serve(async (req) => {
         signed_file: docJson?.signed_file ?? null,
         env: (Deno.env.get("ZAPSIGN_ENV") || "sandbox"),
         raw: docJson,
+        extra_doc: extraDocResult,
       },
       status: "aguardando_assinatura",
     }).eq("id", contrato.id);
@@ -240,6 +241,7 @@ Deno.serve(async (req) => {
       open_id: openId,
       signer_token: signerToken,
       signature_url: signUrl,
+      extra_doc: extraDocResult,
     });
   } catch (err) {
     console.error("zapsign-criar-documento error", err);
