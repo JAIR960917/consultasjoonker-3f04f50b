@@ -144,15 +144,31 @@ Deno.serve(async (req) => {
           pdfDoc.text("Comprovante de residência", pageW / 2, margin, { align: "center" });
           const dataUri = `data:${mime};base64,${body.comprovante_base64}`;
           pdfDoc.addImage(dataUri, imgFmt, margin, margin + 20, maxW, maxH, undefined, "FAST");
-        } else {
-          console.warn("Comprovante não-imagem ignorado (apenas imagens são mescladas):", mime);
+        } else if (mime !== "application/pdf") {
+          console.warn("Comprovante com mime não suportado:", mime);
         }
       } catch (e) {
-        console.error("Erro ao mesclar comprovante no PDF:", e);
+        console.error("Erro ao mesclar comprovante (imagem) no PDF:", e);
       }
     }
 
-    const pdfBytes = new Uint8Array(pdfDoc.output("arraybuffer"));
+    let pdfBytes = new Uint8Array(pdfDoc.output("arraybuffer"));
+
+    // Se o comprovante for PDF, mescla via pdf-lib
+    if (body.comprovante_base64 && (body.comprovante_mime || "").toLowerCase() === "application/pdf") {
+      try {
+        const mainPdf = await PDFDocument.load(pdfBytes);
+        const compBytes = base64ToBytes(body.comprovante_base64);
+        const compPdf = await PDFDocument.load(compBytes);
+        const copiedPages = await mainPdf.copyPages(compPdf, compPdf.getPageIndices());
+        copiedPages.forEach((p) => mainPdf.addPage(p));
+        pdfBytes = await mainPdf.save();
+        console.info("Comprovante PDF mesclado com sucesso, páginas:", copiedPages.length);
+      } catch (e) {
+        console.error("Erro ao mesclar comprovante PDF via pdf-lib:", e);
+      }
+    }
+
     const pdfBase64 = bytesToBase64(pdfBytes);
 
     // ---------- Telefone formatado ----------
