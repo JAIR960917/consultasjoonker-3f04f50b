@@ -333,7 +333,7 @@ interface PdfArgs {
   numero: string;
 }
 
-function buildPdf(d: PdfArgs): Uint8Array {
+function buildPdf(d: PdfArgs): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
