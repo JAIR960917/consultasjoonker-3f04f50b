@@ -115,11 +115,17 @@ Deno.serve(async (req) => {
       .limit(1).maybeSingle();
     const tplTitle = tpl?.title || "Nota Promissória";
 
-    // ---------- Gera PDF ----------
+    // ---------- Gera PDF dinâmico ----------
     const vencimentoFmt = vendaInfo?.primeiro_vencimento ? formatDateBR(vendaInfo.primeiro_vencimento) : null;
     const valorFmt = vendaInfo?.valor_total != null ? formatBRL(vendaInfo.valor_total) : null;
-    const templateId = (Deno.env.get("ZAPSIGN_TEMPLATE_ID") || "").trim();
-    const useTemplate = templateId.length > 0;
+    const pdfBytes = buildPdf({
+      title: tplTitle,
+      content: contrato.content,
+      vencimento: vencimentoFmt,
+      valorTotal: valorFmt,
+      numero: "Nº 1 DE 1",
+    });
+    const pdfBase64 = bytesToBase64(pdfBytes);
 
     // ---------- Telefone formatado ----------
     const telDigits = telefoneParaEnvio.replace(/\D/g, "");
@@ -127,94 +133,46 @@ Deno.serve(async (req) => {
       ? telDigits.slice(2)
       : telDigits;
 
+    // ---------- Cria documento na ZapSign ----------
+    const docPayload: Record<string, unknown> = {
+      name: `${tplTitle} - ${contrato.nome}`.slice(0, 250),
+      base64_pdf: pdfBase64,
+      external_id: contrato.id,
+      lang: "pt-br",
+      disable_signer_emails: true,
+      brand_logo: "",
+      signers: [
+        {
+          name: contrato.nome,
+          blank_email: true,
+          phone_country: "55",
+          phone_number: phoneNumber,
+          auth_mode: "assinaturaTela",
+          send_automatic_email: false,
+          send_automatic_whatsapp: !!body.enviar_whatsapp && !!phoneNumber,
+          require_selfie_photo: true,
+          require_document_photo: true,
+          selfie_validation_type: "none",
+          qualification: "Emitente",
+          external_id: contrato.id,
+        },
+      ],
+    };
+
     const base = zapsignBase();
-    let docResp: Response;
-
-    if (useTemplate) {
-      // ---------- Modo MODELO da ZapSign ----------
-      // Conteúdo do PDF e regras de assinatura vêm do modelo configurado no painel.
-      const dataArr = buildTemplateData({
-        nome: contrato.nome,
-        cpf: contrato.cpf || "",
-        telefone: telefoneParaEnvio,
-        empresa: empresaInfo,
-        venda: vendaInfo,
-      });
-
-      const tplPayload: Record<string, unknown> = {
-        template_id: templateId,
-        signer_name: contrato.nome,
-        external_id: contrato.id,
-        lang: "pt-br",
-        disable_signer_emails: true,
-        send_automatic_email: false,
-        send_automatic_whatsapp: !!body.enviar_whatsapp && !!phoneNumber,
-        signer_phone_country: "55",
-        signer_phone_number: phoneNumber,
-        data: dataArr,
-      };
-
-      docResp = await fetch(`${base}/api/v1/models/create-doc/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(tplPayload),
-      });
-    } else {
-      // ---------- Modo PDF DINÂMICO (fallback) ----------
-      const vencimentoFmt = vendaInfo?.primeiro_vencimento ? formatDateBR(vendaInfo.primeiro_vencimento) : null;
-      const valorFmt = vendaInfo?.valor_total != null ? formatBRL(vendaInfo.valor_total) : null;
-      const pdfBytes = buildPdf({
-        title: tplTitle,
-        content: contrato.content,
-        vencimento: vencimentoFmt,
-        valorTotal: valorFmt,
-        numero: "Nº 1 DE 1",
-      });
-      const pdfBase64 = bytesToBase64(pdfBytes);
-
-      const docPayload: Record<string, unknown> = {
-        name: `${tplTitle} - ${contrato.nome}`.slice(0, 250),
-        base64_pdf: pdfBase64,
-        external_id: contrato.id,
-        lang: "pt-br",
-        disable_signer_emails: true,
-        brand_logo: "",
-        signers: [
-          {
-            name: contrato.nome,
-            blank_email: true,
-            phone_country: "55",
-            phone_number: phoneNumber,
-            auth_mode: "assinaturaTela",
-            send_automatic_email: false,
-            send_automatic_whatsapp: !!body.enviar_whatsapp && !!phoneNumber,
-            require_selfie_photo: true,
-            require_document_photo: true,
-            selfie_validation_type: "none",
-            qualification: "Emitente",
-            external_id: contrato.id,
-          },
-        ],
-      };
-
-      docResp = await fetch(`${base}/api/v1/docs/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(docPayload),
-      });
-    }
+    const docResp = await fetch(`${base}/api/v1/docs/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(docPayload),
+    });
 
     const docText = await docResp.text();
     const docJson = safeJson(docText);
-    console.info(`zapsign create doc (${useTemplate ? "TEMPLATE" : "DYNAMIC"}) status`, docResp.status, "body", docText.slice(0, 1500));
+    console.info("zapsign create doc status", docResp.status, "body", docText.slice(0, 1500));
 
     if (!docResp.ok) {
       const errMsg = docJson?.detail || docJson?.message ||
