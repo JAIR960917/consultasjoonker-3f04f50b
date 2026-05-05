@@ -286,6 +286,8 @@ Deno.serve(async (req) => {
       signature_external_id: docToken,
       signature_url: signUrl,
       signature_data: {
+        mode: useTemplate ? "template" : "dynamic",
+        template_id: useTemplate ? templateId : null,
         doc_token: docToken,
         open_id: openId,
         signer_token: signerToken,
