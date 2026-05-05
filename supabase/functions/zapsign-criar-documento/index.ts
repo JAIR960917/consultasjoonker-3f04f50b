@@ -118,13 +118,40 @@ Deno.serve(async (req) => {
     // ---------- Gera PDF dinâmico ----------
     const vencimentoFmt = vendaInfo?.primeiro_vencimento ? formatDateBR(vendaInfo.primeiro_vencimento) : null;
     const valorFmt = vendaInfo?.valor_total != null ? formatBRL(vendaInfo.valor_total) : null;
-    const pdfBytes = buildPdf({
+    const pdfDoc = buildPdf({
       title: tplTitle,
       content: contrato.content,
       vencimento: vencimentoFmt,
       valorTotal: valorFmt,
       numero: "Nº 1 DE 1",
     });
+
+    // ---------- Anexa comprovante de residência (imagem) como página final ----------
+    if (body.comprovante_base64 && body.comprovante_filename) {
+      try {
+        const mime = (body.comprovante_mime || "").toLowerCase();
+        if (mime.startsWith("image/")) {
+          const imgFmt = mime.includes("png") ? "PNG" : "JPEG";
+          pdfDoc.addPage();
+          const pageW = pdfDoc.internal.pageSize.getWidth();
+          const pageH = pdfDoc.internal.pageSize.getHeight();
+          const margin = 30;
+          const maxW = pageW - margin * 2;
+          const maxH = pageH - margin * 2 - 30;
+          pdfDoc.setFont("helvetica", "bold");
+          pdfDoc.setFontSize(12);
+          pdfDoc.text("Comprovante de residência", pageW / 2, margin, { align: "center" });
+          const dataUri = `data:${mime};base64,${body.comprovante_base64}`;
+          pdfDoc.addImage(dataUri, imgFmt, margin, margin + 20, maxW, maxH, undefined, "FAST");
+        } else {
+          console.warn("Comprovante não-imagem ignorado (apenas imagens são mescladas):", mime);
+        }
+      } catch (e) {
+        console.error("Erro ao mesclar comprovante no PDF:", e);
+      }
+    }
+
+    const pdfBytes = new Uint8Array(pdfDoc.output("arraybuffer"));
     const pdfBase64 = bytesToBase64(pdfBytes);
 
     // ---------- Telefone formatado ----------
