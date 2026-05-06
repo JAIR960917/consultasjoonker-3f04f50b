@@ -198,7 +198,6 @@ Deno.serve(async (req) => {
           require_document_photo: true,
           selfie_validation_type: "none",
           hide_signature_drawing_step: true,
-          signature_required: false,
           qualification: "Emitente",
           external_id: contrato.id,
         },
